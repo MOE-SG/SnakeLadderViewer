@@ -13,19 +13,58 @@ const portals = {
 
 let players = []; 
 let currentTurnIndex = 0;
-
+let lastHeartbeat = Date.now();
 // --- 2. PEERJS CONNECTION ---
-const peer = new Peer();
-let hostConn;
+// If port 443 is blocked, you can specify a custom port or use a different server
+// PEERJS CONFIG: Host can change port here if 443 is blocked
+const peer = new Peer(null, {
+    host: '0.peerjs.com',
+    port: 443, // Change this to 9000 or other if 443 is blocked
+    secure: true
+});
+let hostConn = null;
+
+
+// --- 1. INITIAL LOAD ---
+window.onload = () => {
+    // Retrieve the last room ID from browser memory
+    const lastRoomId = localStorage.getItem('last_room_id');
+    if (lastRoomId) {
+        document.getElementById('host-id').value = lastRoomId;
+        console.log("Last Room ID restored:", lastRoomId);
+    }
+};
+
+// --- 2. STATUS UI HELPER ---
+function updateConnectionStatus(isConnected) {
+    const bar = document.getElementById('status-bar');
+    const text = document.getElementById('status-text');
+    const joinScreen = document.getElementById('join-screen');
+
+    if (isConnected) {
+        bar.className = 'status-connected';
+        text.innerText = "Connected to Host";
+        joinScreen.style.display = 'none'; // Hide input when connected
+    } else {
+        bar.className = 'status-disconnected';
+        text.innerText = "Disconnected";
+        joinScreen.style.display = 'block'; // Show input when disconnected
+    }
+}
 
 function connectToPlayer() {
     const hostId = document.getElementById('host-id').value;
     if (!hostId) return alert("Please enter a Room ID");
 
+	// added Save ID for next time
+    localStorage.setItem('last_room_id', hostId);
+    console.log("Connecting to:", hostId);
     hostConn = peer.connect(hostId);
 
     hostConn.on('open', () => {
         document.getElementById('join-screen').style.display = 'none';
+		console.log("Connection Established!");
+        updateConnectionStatus(true);
         init(); // Initialize board once connected
     });
 
@@ -34,6 +73,7 @@ function connectToPlayer() {
 		
 		switch(data.type) {
 			case 'SYNC':
+			case 'UPDATE_STATE':
 				players = data.players;
 				currentTurnIndex = data.currentTurnIndex;
 				
@@ -50,13 +90,8 @@ function connectToPlayer() {
 					document.getElementById('viewer-count').innerText = data.viewerCount;
 				}
 				break;
-			case 'UPDATE_STATE':
 				// Comprehensive update of the entire game state
-				players = data.players;
-				currentTurnIndex = data.currentTurnIndex;
-				updateUI(); // This handles tokens, leaderboard, and turn text
-				break;
-            case 'ACTION_SOUND':
+			case 'ACTION_SOUND':
 				const sound = document.getElementById(data.soundId);
 				if (sound) { sound.currentTime = 0; sound.play().catch(e => {}); }
 				break;
@@ -100,8 +135,21 @@ function connectToPlayer() {
 				const fwContainer = document.getElementById('fireworks-container');
 				if (fwContainer) fwContainer.classList.add('hidden');
 				break;
+			case 'HEARTBEAT':
+				lastHeartbeat = Date.now();
+				break;
         }
     });
+	
+	hostConn.on('close', () => {
+        console.warn("Connection Closed.");
+        updateConnectionStatus(false);
+    });
+	hostConn.on('error', (err) => {
+        console.error("Connection Error:", err);
+        updateConnectionStatus(false);
+    });
+
 }
 
 // --- 3. VISUAL ENGINE (Shared with Player) ---
@@ -170,7 +218,9 @@ function updateUI() {
             <td><span style="color:${p.color}">●</span> ${p.name} ${isFinished ? '🚩' : ''}</td>
             <td>${p.pos}</td>
             <td>${p.rolls}</td>
-        `;
+			<td>${p.totalRollsGiven || 0}</td> 
+            <td>${p.escapes || 0}</td>
+		`;
         
         tbody.appendChild(row);
 
@@ -182,7 +232,7 @@ function updateUI() {
             }, 100);
         }
 
-        // --- Token logic remains the same ---
+       // 3. TOKEN LOGIC: Handling Tile 0 Staggering
         let t = document.getElementById(`token-${p.id}`);    
         if (!t) {
             t = document.createElement('div');
@@ -190,9 +240,26 @@ function updateUI() {
             t.style.background = p.color; t.innerText = p.id;
             document.getElementById('tokens-layer').appendChild(t);
         }
-        const coords = getTileCenter(p.pos);
+
+        let coords;
+        if (p.pos === 0) {
+            // Define "Waiting Area" to the right of the first tile
+            const tile1 = getTileCenter(1);
+            coords = { 
+                x: tile1.x + 70, // Shift right of tile 1
+                y: tile1.y 
+            };
+        } else {
+            coords = getTileCenter(p.pos);
+        }
+
+        // Apply your staggered grid formula: (p.id % 5) * 4 for X and floor(p.id / 5) * 4 for Y
         t.style.left = (coords.x - 14 + (p.id % 5) * 4) + 'px';
         t.style.top = (coords.y - 14 + Math.floor(p.id / 5) * 4) + 'px';
+        
+        // Ensure tokens are visible if you previously had them hidden at pos 0
+        t.style.display = 'flex';
+        t.style.opacity = isFinished ? "0.4" : "1";
     });
 }
 function getTileCenter(index) {
@@ -283,3 +350,21 @@ function launchFireworks() {
         container.appendChild(fw);
     }
 }
+
+// Every 5 seconds, check if the host is "stale"
+setInterval(() => {
+    // If the host is already marked as disconnected, don't keep warning
+    const statusText = document.getElementById('status-text').innerText;
+    if (statusText === "Disconnected") return;
+
+    const timeSinceLastUpdate = Date.now() - lastHeartbeat;
+    
+    // If no word for 7 seconds, assume the host is gone
+    if (timeSinceLastUpdate > 7000) { 
+        console.warn("Host is unresponsive (Silent for 7s)");
+        updateConnectionStatus(false); 
+        
+        // Optional: Attempt to auto-reconnect if you have the ID saved
+        // connectToPlayer(); 
+    }
+}, 5000);
