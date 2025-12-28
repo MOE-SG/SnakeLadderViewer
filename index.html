@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Snakes & Ladders - WATCH LIVE</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="peerjs.min.js"></script>
+    <style>
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .v-count { position: fixed; top: 10px; right: 10px; padding: 10px; background: #1e293b; border-radius: 8px; border: 1px solid var(--accent); }
+    </style>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+	<div id="status-bar" class="status-disconnected">
+		<span id="status-dot">●</span> 
+		<span id="status-text">Disconnected</span>
+	</div>
+
+    <div id="join-screen" class="overlay">
+        <h1 class="tiger-text">WATCH LIVE GAME</h1>
+        <input type="text" id="host-id" placeholder="Paste Room ID here" style="padding:15px; width:300px; text-align:center;">
+        <button class="primary-btn" onclick="connectToPlayer()" style="width:330px; margin-top:10px;">JOIN STREAM</button>
+    </div>
+
+    <div class="v-count">👀 Viewers: <span id="viewer-count">0</span></div>
+    
+	<div id="game-layout">
+        <aside id="status-panel">
+            <h2 class="tiger-text">🐯 Rankings</h2>
+            <div id="leaderboard-container">
+                <table id="leaderboard">
+                    <thead>
+						<tr>
+							<th>Player</th>
+							<th>Pos</th>
+							<th>Rolls Left</th>
+							<th>Total Given</th>
+							<th>Escapes</th>
+						</tr>
+					</thead>
+                    <tbody id="player-rows"></tbody>
+                </table>
+            </div>
+        </aside>
+
+        <main id="board-area">
+            <div id="board-container">
+                <div id="board"></div>
+                <svg id="svg-layer" viewBox="0 0 600 600">
+                    <defs>                      
+                      <linearGradient id="linearGradient25" x1="20%" y1="20%" x2="100%" y2="0%">
+                        <stop offset="20%" style="stop-color:#884433;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#661111;stop-opacity:1" />
+                      </linearGradient>                  
+                                                                  
+                        <filter id="snakeGlow" x="-50%" y="-50%" width="200%" height="200%">
+                            <feGaussianBlur stdDeviation="4" result="blur" />
+                            <feMerge>
+                                <feMergeNode in="blur" />
+                                <feMergeNode in="SourceGraphic" />
+                            </feMerge>
+                        </filter>
+
+                        <pattern id="tigerStripes" patternUnits="userSpaceOnUse" width="20" height="20">
+                            <rect width="20" height="20" fill="#ff8c2a"/>
+                            <path d="M0,10 Q5,0 10,10 T20,10" stroke="#000" stroke-width="4" fill="none"/>
+                        </pattern>
+
+                        <mask id="tigerMask" maskUnits="userSpaceOnUse">
+                            <rect width="100%" height="100%" fill="black"/>
+                            <path d="m 136,32 -68,222 -10,4 -8,-8 v -10 l 4,-10 -2,-6 h -8 l -4,10 v 22 l 14,12 h 8 l 14,-6 10,-32 18,4 -12,36 2,4 6,2 74,-240 -6,-2 -2,6 -14,8 -10,-8 v -6 z" fill="white"/>
+                            <path d="m 138,56 -8,26 20,4 7.6,-26 z" fill="black"/>
+                            <path d="m 116,127 -8,26 20,4 7.6,-26 z" fill="black"/>
+                            <path d="m 106.2,161 -8,26 20,4 7.6,-26 z" fill="black"/>
+                            <path d="m 96,196 -8,26 20,4 7.6,-26 z" fill="black"/>
+                            <path d="m 126.2,92.2 -8,26 20,4 7.6,-26 z" fill="black"/>
+                        </mask>
+
+                        <g id="tiger-template">
+                            <rect width="200" height="300" fill="url(#tigerStripes)" mask="url(#tigerMask)"/>
+                        </g>
+                      
+                        <g id="new-artwork-template">
+                          <path id="body" style="fill:url(#linearGradient25); stroke:#ffffff; stroke-width:1;" 
+                                 d="m 40.4,61
+                                    c -0.8,-4 -0.8,-4 0.4,-7.8
+                                      1.2,-3.8 14.6,-10.6 21.4,-11.6
+                                      7,-1 11.4,1.4 17.4,3.8
+                                      6,2.4 8.8,3.6 17.4,11
+                                      8.6,7.4 7.8,34.2 31.2,35.6
+                                      23.4,1.4 49.8,-62 73.6,-62
+                                      23.6,0 47.2,46.2 69,45
+                                      21.8,-1.2 27.6,-39 37,-49.6
+                                      9.4,-10.6 15.2,-11 20,-9.4
+                                      4.8,1.6 -2.6,-4.6 -10.6,10.6
+                                      -8,15.2 -17.8,41 -22.6,48
+                                      -4.8,7 -17,19.4 -34,16.6
+                                      -17,-2.6 -46,-41.4 -58.2,-41.2
+                                      -12.2,0.2 -50.4,58.8 -67.6,59.2
+                                      -17.2,0.4 -12.2,1.8 -25.4,-4.8
+                                      -13.4,-6.8 -21.6,-41.4 -29,-40.8
+                                      -7.4,0.6 -3.4,4.6 -15.2,6.2
+                                      -12,1.6 -21.6,-4.2 -24.8,-9
+                                      0,0 0.8,4.2 0,0.2
+                                    z" />
+                          <ellipse id="eye1" style="fill:#fff;" cx="58.6" cy="46" rx="2.8" ry="1.4" />
+                          <ellipse id="eye2" style="fill:#fff;" cx="58.6" cy="66.6" rx="2.8" ry="1.4" />
+                        </g>             
+                    </defs>
+                </svg>
+                <div id="tokens-layer"></div>
+            </div>
+        </main>
+
+        <aside id="control-panel">
+            <section id="player-controls">
+                <h2 class="tiger-text">🎲 Game Controls</h2>
+                <div class="control-card active-turn">
+                    <div id="turn-indicator">Waiting...</div>
+                    <div id="roll-counter">Rolls: 0</div>
+                    <div id="dice-result">🎲 -</div>
+                    
+                </div>
+            </section>
+
+            </aside>
+    </div>
+
+    <div id="event-modal" class="modal-overlay hidden">
+        <div class="modal-content"><h2 id="modal-title"></h2><p id="modal-text"></p><button id="modal-confirm-btn" style="display: none;">OK</button></div>
+    </div>
+    <div id="fireworks-container" class="hidden"></div>
+
+    <audio id="dice-sound" src="dice-142528.mp3"></audio>
+    <audio id="hiss-sound" src="SnakeHiss.mp3"></audio>
+    <audio id="tiger-roar" src="tiger-roar-loudly-193229.mp3"></audio>
+    <audio id="firework-sound" src="fireworks-402788.mp3" loop></audio>
+	
+	
+    <script src="script-viewer.js"></script>
+</body>
+</html>
