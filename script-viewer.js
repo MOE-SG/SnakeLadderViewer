@@ -282,6 +282,7 @@ function drawPortals() {
     const defs = svg.querySelector('defs').outerHTML;
     svg.innerHTML = defs; 
 
+   let i = 0;
     Object.entries(portals).forEach(([start, end]) => {
         start = parseInt(start);
         if (end < start) { // Draw Snakes
@@ -302,26 +303,50 @@ function drawPortals() {
             `);
             svg.appendChild(use);
         } else { // Draw Ladders (Tigers)
-            const tile = document.getElementById(`tile-${start}`);
+             i = i +1;
+			const tile = document.getElementById(`tile-${start}`);
             const hX = tile.offsetWidth / 2;
             const hY = tile.offsetHeight / 2;
-
-            const s = getTilePoint(start, hX, hY); 
-            const e = getTilePoint(end, -hX, -hY);
+			const s = getTilePoint(start, hX, hY); 
+            const e = getTilePoint(end, hX, hY);
             const dx = e.x - s.x;
             const dy = e.y - s.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            const angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
-
+            const angle = (Math.atan2(dy, dx) * (180 / Math.PI))+130;
+			const flipThreshold = 40;
             const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
             use.setAttributeNS("http://www.w3.org/1999/xlink", "href", "#tiger-template");
-            use.setAttribute("transform", `
-                translate(${s.x},${s.y}) 
-                rotate(${angle}) 
-                scale(0.35, ${dist / 280}) 
-                translate(-100,-280)
+            const flip = Math.abs(angle) > flipThreshold ? -1 : 1;
+			//const scale = dist/200;
+			const baseHeight = 1000; 
+			const scaleY = dist/baseHeight;
+            console.log(`🪜 Ladder (${start} to ${end}): sx=${s.x}, sy=${s.y}, ex=${e.x}, ey=${e.y}, dx=${dx.toFixed(2)}, dy=${dy.toFixed(2)}, dist=${dist.toFixed(2)}, scaleY=${scaleY.toFixed(2)}, angle = ${angle.toFixed(2)}`);
+			//const scaleX = dist / baseHeight;
+			if (i==1){
+			use.setAttribute("transform", `
+				translate(480, 420)
+				scale(0.25,0.2)
+				rotate(30)	
             `);
-            svg.appendChild(use);
+			}else if (i==2){
+			use.setAttribute("transform", `
+				translate(${e.x-10}, ${e.y-10})
+				rotate(50)	
+				scale(-0.2,0.52)
+            `);
+			}else if (i==3){
+			use.setAttribute("transform", `
+				translate(${e.x-20}, ${e.y-10})
+				rotate(50)	
+				scale(-0.2,0.52)
+            `);
+			}else if (i==4){
+			use.setAttribute("transform", `
+				translate(${e.x-10}, ${e.y-30})
+				rotate(0)	
+				scale(-0.25,0.25)
+            `);}
+			svg.appendChild(use);
         }
     });
 }
